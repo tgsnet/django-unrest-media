@@ -1,13 +1,13 @@
 <photo-list>
-  <div class="rows foreground_loading">
+  <div class="rows">
     <div id="dropzone" class="fourth dropzone"></div>
-    <photo class="fourth background_loading" each={ photos }>
+    <photo class="fourth { removed?'removed':''; }" each={ photos } id="__photo_{ id }" if={ !deleted }>
       <div class="buttons">
-        <button class="btn btn-danger" onclick={ parent.untag } title="Will not delete photo from database">
-          <i class="fa fa-times"></i> Unlink</button>
+        <button class="btn btn-danger" onclick={ parent.untag } title="Will not delete photo from database"
+                if={ !removed }><i class="fa fa-times"></i> Unlink</button>
         <button class="btn btn-danger" onclick={ parent.delete } title="Will delete from database">
           <i class="fa fa-warning"></i> Delete</button>
-        <a class="btn btn-primary" href="/admin/media/photo/{ id }">
+        <a class="btn btn-primary" href="/admin/media/photo/{ id }/">
           <i class="fa fa-pencil-square"></i> Edit</a>
       </div>
       <img src="{ thumbnail }" if={ thumbnail }/>
@@ -17,7 +17,7 @@
   </div>
 
   this.photos = window._PHOTOS.photos;
-  var that = this;
+  var self = this;
   var edit_timeout;
   this.on("mount",function() {
     $("#dropzone").bind("dragenter", function(e) {
@@ -30,47 +30,40 @@
       e.preventDefault();
     }).bind("drop", opts.dropHandler);
   });
-  editName(e) {
-    clearTimeout(edit_timeout);
-    $(e.target).closest('photo').addClass("loading").removeClass("success");
-    edit_timeout = setTimeout(function() {
-      $.post(
-        '/media_files/photo/edit/'+e.item.id+'/',
-        {name:e.target.innerText},
-        function(data) {
-          $(e.target).closest('photo').removeClass("loading").addClass("success");
-        }
-      )
-    },500);
-  }
-  function removePhoto(id) {
-    for (var i=0;i<window._PHOTOS.photos.length;i++) {
-      if (window._PHOTOS.photos[i].id == id) { window._PHOTOS.photos.splice(i,1); }
-    }
-    riot.update("photo-list");
-  }
+  this.editName = uR.debounce(function(e) {
+    uR.ajax({
+      url: '/media_files/photo/edit/'+e.item.id+'/',
+      data: {name:e.target.innerText},
+      target: self.root.querySelector("#__photo_"+e.item.id),
+      loading_attribute: "background-spinner",
+    });
+  },200)
+
   untag(e) {
-    $.post(
-      '/media_files/photo/untag/',
-      {
+    uR.ajax({
+      url: '/media_files/photo/untag/',
+      method: "POST",
+      data: {
         content_type:window._PHOTOS.content_type,
         object_id:window._PHOTOS.object_id,
         photo_id: e.item.id
       },
-      function(data) {
-        removePhoto(e.item.id);
-      }
-    )
+      that: self,
+      target: self.root.querySelector("#__photo_"+e.item.id),
+      success: function(data) { e.item.removed = true; }
+    });
   }
   delete(e) {
-    var warn = "This will delete this photo entirely from the site. Don't do this unless you are certain";
-    if (confirm(warn)) {
-      $.post(
-        '/media_files/photo/delete/'+e.item.id+'/',
-        function(data) {
-          removePhoto(e.item.id);
-        }
-      )
+    var warn = "This will delete this photo entirely from the site. Don't do this unless you are certain.";
+    warn += "\n\nTo bypass this message next time, hold down the control key when you click the delete button.";
+    if (e.ctrlKey || confirm(warn)) {
+      uR.ajax({
+        url: '/media_files/photo/delete/'+e.item.id+'/',
+        method: "POST",
+        that: self,
+        target: self.root.querySelector("#__photo_"+e.item.id),
+        success: function(data) { e.item.deleted = true; }
+      })
     }
   }
 </photo-list>
@@ -86,19 +79,19 @@
     </div>
   </div>
 
-  var that = this;
+  var self = this;
   var search_timeout;
   search(e) {
     clearTimeout(search_timeout);
-    var q = that.q.value;
+    var q = self.q.value;
     if (!q || q.length < 3) { return }
     search_timeout = setTimeout(function() {
       $.get(
         "/media_files/photo/search/",
-        {q:that.q.value},
+        {q:self.q.value},
         function(data) {
-          that.search_results = data;
-          that.update();
+          self.search_results = data;
+          self.update();
         },
         "json"
       )
@@ -114,8 +107,8 @@
         photo_id: e.item.id
       },
       function(data) {
-        that.search_results = [];
-        that.update();
+        self.search_results = [];
+        self.update();
         if (data) { //data is true/false depending on whether or not a tag was created
           window._PHOTOS.photos.unshift(e.item);
           riot.update("photo-list");
