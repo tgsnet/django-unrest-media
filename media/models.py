@@ -119,6 +119,7 @@ class TaggedPhoto(models.Model):
   order = models.IntegerField(default=9999)
 
 class PhotosMixin(object):
+  default_photo_id = None
   @cached_property
   def first_photo(self):
     try:
@@ -130,8 +131,8 @@ class PhotosMixin(object):
     return ContentType.objects.get_for_model(self.__class__).id
   @cached_method
   def get_photos(self):
-    if getattr(self,"_use_default_photo",False):
-      return self._get_photos() or [Photo.objects.get(id=144)]
+    if self.default_photo_id:
+      return self._get_photos() or [Photo.objects.get(id=self.default_photo_id)]
     return self._get_photos()
   def _get_photos(self):
     return list(Photo.objects.filter(taggedphoto__content_type_id=self._ct_id,
