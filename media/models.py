@@ -193,3 +193,6 @@ class UploadedFile(models.Model,UserOrSessionMixin,JsonMixin):
   url = property(lambda self: self.src.url)
   __unicode__ = lambda self: self.name
   json_fields = ['id','name','url','content_type']
+  def delete(self,*args,**kwargs):
+    self.src.delete()
+    super(UploadedFile,self).delete(*args,**kwargs)
